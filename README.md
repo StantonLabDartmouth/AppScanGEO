@@ -14,4 +14,5 @@ ScanGEO installation instructions:
 4) Download the GEOmetadb data base into your local directory by running the following commands in R:
 > library(GEOmetadb)
 > getSQLiteFile(destdir = getwd(), destfile = "GEOmetadb.sqlite.gz")
+
 5) When scanning a particular GDS for the first time, the scan will take longer, as the soft file needs to be downloaded once.
