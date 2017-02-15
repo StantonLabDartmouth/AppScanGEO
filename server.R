@@ -97,9 +97,7 @@ shinyServer(function(input, output, session){
                         isolate(Directories$Session.path <- file.path(paste(First.wd, "/results", sep=""), Session.ID))
                         dir.create(Directories$Session.path)
                         setwd(Directories$Session.path)
-                        # myPath <- file.path(paste(First.wd, "/results", sep=""), Session.ID)
-                        # dir.create(myPath)
-                        # setwd(myPath)
+                    
                         
                         withProgress(message = 'Scanning GEO data base', value = 0, {
                                 ScanGeo(Genes, datasetInput()$gds, input$alpha)})
