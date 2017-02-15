@@ -13,7 +13,7 @@ ScanGEO installation instructions:
 
 2) In your local target directory, create two additional subdirectories named "softfiles" and "results".
 
-3) unzip www.zip (this will create a www subdirectory with the files for the app documentation and logo).
+3) Unzip the "www" zip file (this will create a www subdirectory with the files for the app documentation and logo).
 
 4) Download the GEOmetadb data base into your local directory by running the following commands in R:
 > library(GEOmetadb)
