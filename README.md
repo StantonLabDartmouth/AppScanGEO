@@ -2,9 +2,13 @@
 Source code for ScanGEO Shiny App
 
 Requirements:
+
 15 GB disk space
+
 8 GB RAM
+
 R installed (https://www.r-project.org/)
+
 Internet connection
 
 ScanGEO installation instructions:
