@@ -102,19 +102,29 @@ shinyServer(function(input, output, session){
              
                 Genes <- c(as.character(input$gene), as.character(unlist(MasterListAll[[input$organism]][input$KEGG])))
                 
-                if (length(Genes) != 0) {
+                if (length(Genes) == 0) {
+                        output$done <- renderText({'No genes selected'})
+                        output$ui <- renderUI({
+                                verbatimTextOutput('done')
+                        })
+                } else {       
                         Session.ID <- gsub(" ", "", Sys.time(), fixed = TRUE)
                         Session.ID <- gsub("-", "", Session.ID, fixed = TRUE)
                         Session.ID <- gsub(":", "", Session.ID, fixed = TRUE)
                         
-                        isolate(Directories$Session.path <- file.path(paste(First.wd, "/results", sep=""), Session.ID))
-                        dir.create(Directories$Session.path)
-                        setwd(Directories$Session.path)
+                        setwd(First.wd)
+                        Session.path <- paste(First.wd, "/results/", Session.ID, sep ="")
+                        dir.create(Session.path)
+                        setwd(Session.path)
                     
-                        
                         withProgress(message = 'Scanning GEO data base', value = 0, {
                                 ScanGeo(Genes, datasetInput()$gds, input$alpha)})
                         if (length(list.files(pattern = '\\.pdf$')) > 0) {
+                                
+                                Composite.Name <- paste(Session.ID, '.zip', sep='')
+                                SystemCall <- paste("find . -name '*.pdf' -print | zip ", Composite.Name, " -@", sep ="")
+                                system(SystemCall)
+                                
                                 output$done <- renderText({'Scan complete!'})
                                 output$ui <- renderUI({
                                         tagList(
@@ -136,25 +146,16 @@ shinyServer(function(input, output, session){
                                 )
                                 })
                         }
-                } else {
-                output$done <- renderText({'No genes selected'})
-                output$ui <- renderUI({
-                        verbatimTextOutput('done')
-                })
-                }
+               }
            
                
 
         output$download <- downloadHandler(
-                filename = function() {
-                        paste(input$organism, input$text, "Results", '.zip', sep='')
+                filename = Composite.Name,
+                content <- function(file) {
+                        file.copy(from = paste(Session.path, "/", Composite.Name, sep = ""), to = file)
                 },
-                content = function(file) {
-                        zip(file, file = dir(path = Directories$Session.path, pattern = ".pdf"))
-                }
-        )
-        
-        
+                contentType = "application/zip")
         })
         
         

@@ -17,16 +17,11 @@ library(GEOmetadb)
 library(gplots)
 
 First.wd <- getwd()
-
-Directories <- reactiveValues()
-
 con <- dbConnect(SQLite(), "GEOmetadb.sqlite")
 Organism <- dbGetQuery(con, "select platform_organism from gds")
 Organism <- unlist(strsplit(Organism$platform_organism, ","))
 Genus <- strsplit(Organism, " ")
-Genus <- unlist(lapply(Genus, function (x){
-        x[1]
-}))
+Genus <- unlist(lapply(Genus, function (x){x[1]}))
 Genus <- sort(names(head(sort(table(Genus), decreasing = TRUE), 20)))
 
 load("Org.rds")

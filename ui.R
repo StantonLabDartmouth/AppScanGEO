@@ -14,7 +14,7 @@
 shinyUI(
         fluidPage(
                 tags$img(style="height:150px; width:150px", src="Scan.png", align = "right"),
-                titlePanel("ScanGEO - paralell mining of high-throughput gene expression data"),
+                titlePanel("ScanGEO - parallel mining of high-throughput gene expression data"),
                 
                 
                 fluidRow(
@@ -76,8 +76,9 @@ shinyUI(
                                                         tags$iframe(style="height:600px; width:800px; scrolling=yes",
                                                                     src="index.html"),
                                                         h4("Click on slides to start, use arrow buttons to advance or go back")
-                                                )
-
-                                       )
-                              ))
-                        )))
+                                                ))))
+                                       
+                              
+                        )
+                )
+        )
