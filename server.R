@@ -13,6 +13,7 @@
 
 shinyServer(function(input, output, session){
                
+
         datasetInput <- eventReactive(input$find, {
                 query <- paste("select title, gds, pubmed_id, type, platform_organism,
                                 update_date from gds where platform_organism like",
@@ -86,11 +87,41 @@ shinyServer(function(input, output, session){
         })
         
         
-        observeEvent({length(input$gene) !=0 | length(input$KEGG) != 0}, {
-                Genes <- c(as.character(input$gene), as.character(unlist(MasterListAll[[input$organism]][input$KEGG])))
+        custom_genes <- reactive({
+                if (is.null(input$genefile))
+                        return(NULL)
+                read.csv(input$genefile$datapath, header = FALSE, nrows = 200,
+                         stringsAsFactors = FALSE)[, 1]
+        })
+        
+        
+        output$customfile <- renderUI({
+                fileInput('genefile', 'Upload CSV file (limit = 200 gene symbols)', accept='.csv')
+        })
+        
+        observeEvent(input$genefile, {
+        unmapped <- reactive({
+                setdiff(custom_genes(), unlist(Org[input$organism]))
+                })
+        output$unmapped <- renderText({unmapped()})
+        
+        if (length(unmapped()) > 0){
+                output$error <- renderUI({
+                        tagList(
+                        h5("The following gene symbols were not found in the selected organism:"),
+                        verbatimTextOutput('unmapped')
+                        )
+                })
+        } else {
+                output$error <- renderUI({})      
+             }
+        })
+        
+        observeEvent({length(input$gene) != 0 | length(input$KEGG) != 0 | length(input$genefile) != 0}, {
+                Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), as.character(input$gene), custom_genes()))
                 if (length(Genes) != 0) {
-                output$ScanTime <- renderText(paste("Estimated scan time will be:", 
-                round((0.017 * dim(datasetInput())[1]) + (0.000075 * dim(datasetInput())[1] * length(Genes)), 1), "minutes"))
+                output$ScanTime <- renderText(paste("Estimated scan time:", 
+                round(predict(RF, newdata = data.frame(Studies = dim(datasetInput())[1], Geneinput = length(Genes)))/60, 1), "minutes"))
                 output$time <- renderUI({
                         verbatimTextOutput('ScanTime')
                         })
@@ -99,8 +130,8 @@ shinyServer(function(input, output, session){
         
         
         observeEvent(input$scan, {
-             
-                Genes <- c(as.character(input$gene), as.character(unlist(MasterListAll[[input$organism]][input$KEGG])))
+                
+                Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), as.character(input$gene), custom_genes()))
                 
                 if (length(Genes) == 0) {
                         output$done <- renderText({'No genes selected'})
@@ -116,13 +147,18 @@ shinyServer(function(input, output, session){
                         Session.path <- paste(First.wd, "/results/", Session.ID, sep ="")
                         dir.create(Session.path)
                         setwd(Session.path)
-                    
+                        
+                        write.csv(datasetInput(), file = paste("02_GDS_summary_", input$organism, '.csv', sep=''), 
+                                  row.names = FALSE)
+                        file.copy(from = paste(First.wd, "/01_README.pdf", sep = ""), to = Session.path)
+                        
                         withProgress(message = 'Scanning GEO data base', value = 0, {
                                 ScanGeo(Genes, datasetInput()$gds, input$alpha)})
                         if (length(list.files(pattern = '\\.pdf$')) > 0) {
                                 
                                 Composite.Name <- paste(Session.ID, '.zip', sep='')
-                                SystemCall <- paste("find . -name '*.pdf' -print | zip ", Composite.Name, " -@", sep ="")
+                                SystemCall <- paste("find . \\( -name '*.pdf' -or -name '*.csv' \\) -print | zip ", 
+                                                    Composite.Name, " -@", sep ="")
                                 system(SystemCall)
                                 
                                 output$done <- renderText({'Scan complete!'})
@@ -166,12 +202,15 @@ shinyServer(function(input, output, session){
                 updateRadioButtons(session, 'alpha', label = "Significance level alpha",
                                    choices = list("0.05" = 0.05, "0.01" = 0.01, "0.001" = 0.001),
                                    selected = 0.05)
-                
                 output$table <- renderDataTable({})
                 output$ScanButton <- renderUI({})
                 output$time <- renderUI({})
                 output$ui <- renderUI({})
                 output$status <- renderUI({})
+                output$error <- renderUI({})
+                output$customfile <- renderUI({
+                        fileInput('genefile', 'Upload CSV file (limit = 200 gene symbols)', accept='.csv')
+                })
         
               
         })

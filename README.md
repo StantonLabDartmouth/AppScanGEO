@@ -3,11 +3,13 @@ Source code for ScanGEO Shiny App
 
 ### Requirements:
 
-15 GB disk space
+20 GB disk space
 
 8 GB RAM
 
 R installed (https://www.r-project.org/)
+
+R packages: "shiny", "GEOmetadb" and "randomForest"
 
 Internet connection
 

@@ -14,7 +14,7 @@
 
 library(shiny)
 library(GEOmetadb)
-library(gplots)
+library(randomForest)
 
 First.wd <- getwd()
 con <- dbConnect(SQLite(), "GEOmetadb.sqlite")
@@ -26,9 +26,12 @@ Genus <- sort(names(head(sort(table(Genus), decreasing = TRUE), 20)))
 
 load("Org.rds")
 load("MasterListAll.rds")
+load("RF.rds")
 
 ScanGeo <- function(geneList, gdsList, alpha){	
         ScanResult = list()
+        ScanPvalues = matrix(nrow = length(geneList), ncol = length(gdsList), 
+                             data = NA, dimnames = list(geneList, gdsList))
         for(gds in gdsList){
                 incProgress(1/length(gdsList))
                 print(gds)
@@ -44,9 +47,8 @@ ScanGeo <- function(geneList, gdsList, alpha){
                         myF <- as.character(Columns(G)[,-c(1,dim(Columns(G))[2])])
                 }
                 
-                # This requires that the second largest N per group exceeds 2
-                
-                if(sort(table(myF), decreasing=TRUE)[2] > 2){
+                # This requires that all groups have at least two samples
+                if(min(table(myF)) > 1){
                         d <- Table(G)
                         dMat <- apply(d[,-c(1,2)], 2, as.numeric)
                         rownames(dMat) <- as.vector(d$ID_REF)
@@ -55,10 +57,7 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                 
                                 probes <-  as.vector(G@dataTable@table$"ID_REF")[as.vector(G@dataTable@table$IDENTIFIER) == gene]
                                 
-                                
-                                
                                 # probes <- probes[- which(is.na(probes))]
-                                
                                 for (p in as.vector(probes)){
                                         if(is.na(p)) {next}
                                         print(paste("Finding values for", gene, gds, p))
@@ -66,12 +65,27 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                                 print(paste("ANOVA for", gene, gds, p))
                                                 
                                                 myP = anova(lm(log2(dMat[p,]) ~ myF))$"Pr(>F)"[1]
-                                                if ( myP < alpha){
+                                                
+                                                # myP is for a probe, not a gene
+                                                # we only update the gene p-value if the probe p value is less than the existing p-value
+                                                if (is.nan(myP)) {next}
+                                                
+                                                if (is.na(ScanPvalues[gene, gds])){
+                                                        ScanPvalues[gene, gds] <- myP
+                                                } else if (ScanPvalues[gene, gds] > myP) {
+                                                        ScanPvalues[gene, gds] <- myP
+                                                }
+                                                
+                                                if (myP < alpha){
                                                         myPDF = sub('/', '_', paste(gene, p, gds, "pdf", sep='.'))
+                                                        myCSV = sub('/', '_', paste(gene, p, gds, "csv", sep='.'))
                                                         print(paste("Creating boxplot:", myPDF))
                                                         
-                                                        pdf(file=myPDF)
+                                                        myP = anova(lm(log2(dMat[p,]) ~ myF))$"Pr(>F)"[1]
+                                                        CSVmat = matrix(nrow = 1, ncol = length(myF), data = dMat[p,], dimnames = list(gene, myF))
+                                                        write.csv(CSVmat, file = myCSV)
                                                         
+                                                        pdf(file=myPDF)
                                                         if(nchar(G@header$title) > 60){
                                                                 par(cex.main=.6)
                                                         } else {
@@ -91,10 +105,17 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                                         
                                                         
                                                         ScanResult[[gds]] = c(ScanResult[[gds]], gene)
-                                                        boxplot2(log2(dMat[p,]) ~ factor(myF), main=paste(G@header$title, 
-                                                        paste (paste(gene, p, gds, "pdf", sep='.'), paste("P =", round(myP, 3)), sep = " : "), 
-                                                        sep="\n"),
-                                                        ylab=paste(gene, "RNA Expression (log2)"), las=2)
+                                                        
+                                                        stripchart(log2(dMat[p,]) ~ factor(myF), 
+                                                                   main=paste(G@header$title, paste(paste(gene, p, gds, "pdf", sep='.'), 
+                                                                        paste("P =", round(myP, 3)), sep = " : "), sep="\n"),
+                                                                   ylab=paste(gene, "RNA Expression (log2)"), las=2, 
+                                                                   xlim=c(0.5, length(levels(factor(myF))) + 0.5),
+                                                                   vertical = TRUE, pch = 16, col = "black") 
+                                                        means <- tapply(log2(dMat[p,]), factor(myF), mean)
+                                                        loc <- 1:length(means)
+                                                        segments(loc-0.3, means, loc+0.3, means, col="red", lwd=3)
+                                                     
                                                         dev.off()
                                                 } 
                                                 else {
@@ -111,6 +132,7 @@ ScanGeo <- function(geneList, gdsList, alpha){
                         
                 }
         }}
+        write.csv(ScanPvalues, file = "03_pValues_summary.csv")
         return(ScanResult)
         
 }
