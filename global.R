@@ -14,7 +14,6 @@
 
 library(shiny)
 library(GEOmetadb)
-library(randomForest)
 
 First.wd <- getwd()
 con <- dbConnect(SQLite(), "GEOmetadb.sqlite")
@@ -26,11 +25,12 @@ Genus <- sort(names(head(sort(table(Genus), decreasing = TRUE), 20)))
 
 load("Org.rds")
 load("MasterListAll.rds")
-load("RF.rds")
 
 ScanGeo <- function(geneList, gdsList, alpha){	
         ScanResult = list()
         ScanPvalues = matrix(nrow = length(geneList), ncol = length(gdsList), 
+                             data = NA, dimnames = list(geneList, gdsList))
+        ScanFC = matrix(nrow = length(geneList), ncol = length(gdsList), 
                              data = NA, dimnames = list(geneList, gdsList))
         for(gds in gdsList){
                 incProgress(1/length(gdsList))
@@ -52,6 +52,8 @@ ScanGeo <- function(geneList, gdsList, alpha){
                         d <- Table(G)
                         dMat <- apply(d[,-c(1,2)], 2, as.numeric)
                         rownames(dMat) <- as.vector(d$ID_REF)
+                        
+                        
                         for(gene in geneList){
                                 print(paste("Finding probes for", gene, gds))
                                 
@@ -64,7 +66,14 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                         if((sum(is.na(dMat[p,])) == 0) & (sum(dMat[p,] > 0 ) == dim(dMat)[2])){
                                                 print(paste("ANOVA for", gene, gds, p))
                                                 
-                                                myP = anova(lm(log2(dMat[p,]) ~ myF))$"Pr(>F)"[1]
+                                                # test if matrix is already log transformed
+                                                if (max(dMat, na.rm = TRUE) > 20){
+                                                eData <- log2(dMat[p,])
+                                                } else {
+                                                eData <- dMat[p,]       
+                                                }
+                                                        
+                                                myP = anova(lm(eData ~ myF))$"Pr(>F)"[1]
                                                 
                                                 # myP is for a probe, not a gene
                                                 # we only update the gene p-value if the probe p value is less than the existing p-value
@@ -76,12 +85,16 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                                         ScanPvalues[gene, gds] <- myP
                                                 }
                                                 
+                                                # calculate absolute maximum log2 fold changes
+                                                means <- tapply(eData, factor(myF), mean)
+                                                maxFC <- abs(range(means)[1] - range(means)[2])
+                                                ScanFC[gene, gds] <- maxFC
+                                                
                                                 if (myP < alpha){
                                                         myPDF = sub('/', '_', paste(gene, p, gds, "pdf", sep='.'))
                                                         myCSV = sub('/', '_', paste(gene, p, gds, "csv", sep='.'))
                                                         print(paste("Creating boxplot:", myPDF))
                                                         
-                                                        myP = anova(lm(log2(dMat[p,]) ~ myF))$"Pr(>F)"[1]
                                                         CSVmat = matrix(nrow = 1, ncol = length(myF), data = dMat[p,], dimnames = list(gene, myF))
                                                         write.csv(CSVmat, file = myCSV)
                                                         
@@ -106,25 +119,25 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                                         
                                                         ScanResult[[gds]] = c(ScanResult[[gds]], gene)
                                                         
-                                                        stripchart(log2(dMat[p,]) ~ factor(myF), 
+                                                        stripchart(eData ~ factor(myF), 
                                                                    main=paste(G@header$title, paste(paste(gene, p, gds, "pdf", sep='.'), 
                                                                         paste("P =", round(myP, 3)), sep = " : "), sep="\n"),
                                                                    ylab=paste(gene, "RNA Expression (log2)"), las=2, 
                                                                    xlim=c(0.5, length(levels(factor(myF))) + 0.5),
                                                                    vertical = TRUE, pch = 16, col = "black") 
-                                                        means <- tapply(log2(dMat[p,]), factor(myF), mean)
+                                                        #means <- tapply(eData, factor(myF), mean)
+                                                        
                                                         loc <- 1:length(means)
                                                         segments(loc-0.3, means, loc+0.3, means, col="red", lwd=3)
-                                                     
                                                         dev.off()
-                                                } 
-                                                else {
+                                                
+                                                } else {
                                                         print (paste("P exceeds target alpha", gene, gds, p, myP))
                                                 }
-                                        }
-                                        else { 
+                                     
+                                        
+                                        } else { 
                                                 print (paste("Data issues:", gene, gds, p))
-                                                dMat[p,]
                                         }
                                 }
                                 
@@ -133,6 +146,7 @@ ScanGeo <- function(geneList, gdsList, alpha){
                 }
         }}
         write.csv(ScanPvalues, file = "03_pValues_summary.csv")
+        write.csv(ScanFC, file = "04_max_log2FC_summary.csv")
         return(ScanResult)
         
 }

@@ -45,11 +45,7 @@ shinyServer(function(input, output, session){
         }
         
         output$status <- renderUI({
-                        tagList(
-                                verbatimTextOutput('message'),
-                                hr(),
-                                downloadButton('downloadTable', "Download summary table")
-                        )
+                verbatimTextOutput('message')
                 })
         
         output$table <- renderDataTable({
@@ -63,16 +59,6 @@ shinyServer(function(input, output, session){
         })
         
    
-        
-        output$downloadTable <- downloadHandler(
-                filename = function() {
-                        paste(input$organism, input$text, "Table", '.csv', sep='')
-                },
-                content = function(file) {
-                        write.csv(datasetInput(), file, row.names = FALSE)
-                }
-        )
-       
         genesList <- reactive({
                 Org[[input$organism]]
         })
@@ -121,7 +107,7 @@ shinyServer(function(input, output, session){
                 Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), as.character(input$gene), custom_genes()))
                 if (length(Genes) != 0) {
                 output$ScanTime <- renderText(paste("Estimated scan time:", 
-                round(predict(RF, newdata = data.frame(Studies = dim(datasetInput())[1], Geneinput = length(Genes)))/60, 1), "minutes"))
+                round((1.22*dim(datasetInput())[1] + (0.008 * dim(datasetInput())[1] * length(Genes)))/60, 1), "minutes"))
                 output$time <- renderUI({
                         verbatimTextOutput('ScanTime')
                         })
