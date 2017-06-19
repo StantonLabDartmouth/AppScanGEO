@@ -49,6 +49,10 @@ shinyUI(
                                 wellPanel(
                                 selectizeInput('gene', "Enter gene symbols", multiple = TRUE, choices = NULL),
                                 hr(),
+                                textInput('wildcard', "Wildcard search (e.g. all genes starting with 'MIR' or 'LINC')", value = ""),
+                                hr(),
+                                uiOutput('wild_UI'),
+                                hr(),
                                 uiOutput('customfile'),
                                 hr(),
                                 uiOutput('error')
@@ -82,6 +86,10 @@ shinyUI(
                                         tabsetPanel(
                                         tabPanel("Table",
                                                 dataTableOutput(outputId="table")),
+                                        tabPanel("Significant Genes",
+                                                dataTableOutput(outputId="sig_genes")),
+                                        tabPanel("Significant Studies",
+                                                dataTableOutput(outputId="sig_studies")),
                                         tabPanel("Documentation",
                                                 tags$iframe(style="height:600px; width:800px; scrolling=yes", src="index.html"),
                                                 h4("Click on slides to start, use arrow buttons to advance or go back")

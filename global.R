@@ -15,6 +15,7 @@
 library(shiny)
 library(GEOmetadb)
 
+options(scipen=999)
 First.wd <- getwd()
 con <- dbConnect(SQLite(), "GEOmetadb.sqlite")
 Organism <- dbGetQuery(con, "select platform_organism from gds")
@@ -28,9 +29,9 @@ load("MasterListAll.rds")
 
 ScanGeo <- function(geneList, gdsList, alpha){	
         ScanResult = list()
-        ScanPvalues = matrix(nrow = length(geneList), ncol = length(gdsList), 
+        ScanPvalues <<- matrix(nrow = length(geneList), ncol = length(gdsList), 
                              data = NA, dimnames = list(geneList, gdsList))
-        ScanFC = matrix(nrow = length(geneList), ncol = length(gdsList), 
+        ScanFC <<- matrix(nrow = length(geneList), ncol = length(gdsList), 
                              data = NA, dimnames = list(geneList, gdsList))
         for(gds in gdsList){
                 incProgress(1/length(gdsList))
@@ -80,15 +81,15 @@ ScanGeo <- function(geneList, gdsList, alpha){
                                                 if (is.nan(myP)) {next}
                                                 
                                                 if (is.na(ScanPvalues[gene, gds])){
-                                                        ScanPvalues[gene, gds] <- myP
+                                                        ScanPvalues[gene, gds] <<- myP
                                                 } else if (ScanPvalues[gene, gds] > myP) {
-                                                        ScanPvalues[gene, gds] <- myP
+                                                        ScanPvalues[gene, gds] <<- myP
                                                 }
                                                 
                                                 # calculate absolute maximum log2 fold changes
                                                 means <- tapply(eData, factor(myF), mean)
                                                 maxFC <- abs(range(means)[1] - range(means)[2])
-                                                ScanFC[gene, gds] <- maxFC
+                                                ScanFC[gene, gds] <<- maxFC
                                                 
                                                 if (myP < alpha){
                                                         myPDF = sub('/', '_', paste(gene, p, gds, "pdf", sep='.'))
@@ -145,8 +146,8 @@ ScanGeo <- function(geneList, gdsList, alpha){
                         
                 }
         }}
-        write.csv(ScanPvalues, file = "03_pValues_summary.csv")
-        write.csv(ScanFC, file = "04_max_log2FC_summary.csv")
+        write.csv(ScanPvalues, file = "05_pValues_summary.csv")
+        write.csv(ScanFC, file = "06_max_log2FC_summary.csv")
         return(ScanResult)
         
 }

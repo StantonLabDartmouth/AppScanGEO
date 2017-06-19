@@ -49,8 +49,15 @@ shinyServer(function(input, output, session){
                 })
         
         output$table <- renderDataTable({
-                datasetInput()
-        }, options = list(searching = FALSE))
+                Summary_tab <<- datasetInput()
+                Summary_tab$gds <<- unlist(lapply(datasetInput()$gds, function(x){
+                        paste0("<a href='", "https://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=",
+                               x, "' target='_blank'>", x,"</a>")}))
+                Summary_tab$pubmed_id <<- unlist(lapply(datasetInput()$pubmed_id, function(x){
+                        paste0("<a href='", "https://www.ncbi.nlm.nih.gov/pubmed/",
+                               x, "' target='_blank'>", x,"</a>")}))        
+                return(Summary_tab)
+        }, escape = FALSE)
         
         output$ScanButton <- renderUI({
                 actionButton('scan', "ScanGEO", icon("spinner"),
@@ -72,19 +79,39 @@ shinyServer(function(input, output, session){
         updateSelectizeInput(session, 'KEGG', server = TRUE, choices = KEGGList())
         })
         
+        wildcard_genes <- reactive({
+                if (input$wildcard != ""){
+                as.character(unlist(Org[[input$organism]])[grep(paste("^", input$wildcard, sep = ""),
+                                                                unlist(Org[input$organism]))])
+                } else {
+                return(NULL)       
+                }
+        }) 
         
-        custom_genes <- reactive({
-                if (is.null(input$genefile))
-                        return(NULL)
-                read.csv(input$genefile$datapath, header = FALSE, nrows = 200,
-                         stringsAsFactors = FALSE)[, 1]
+        
+        observe({
+                if (input$wildcard > 0){
+                        output$wildgenes <- renderText(paste(length(wildcard_genes()), "gene symbols found searching for \n genes starting with \"",
+                                                             isolate(input$wildcard), "\"", "\n in", isolate(input$organism)))
+                        output$wild_UI <- renderUI({
+                                verbatimTextOutput('wildgenes')
+                        })} else{
+                                wildcard_genes <- NULL
+                        }
         })
-        
-        
+       
+
         output$customfile <- renderUI({
                 fileInput('genefile', 'Upload CSV file (limit = 200 gene symbols)', accept='.csv')
         })
         
+        
+        custom_genes <- reactive({
+                if (!is.null(input$genefile)){
+                read.csv(input$genefile$datapath, header = FALSE, nrows = 200,
+                         stringsAsFactors = FALSE)[, 1]}
+        })
+
         observeEvent(input$genefile, {
         unmapped <- reactive({
                 setdiff(custom_genes(), unlist(Org[input$organism]))
@@ -103,8 +130,11 @@ shinyServer(function(input, output, session){
              }
         })
         
-        observeEvent({length(input$gene) != 0 | length(input$KEGG) != 0 | length(input$genefile) != 0}, {
-                Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), as.character(input$gene), custom_genes()))
+        
+        observeEvent({length(input$gene) != 0 | length(input$KEGG) != 0 | length(input$genefile) != 0 | length(input$wildcard) != 0}, {
+                Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), 
+                                  as.character(input$gene), custom_genes(), wildcard_genes()))
+                output$done <- renderText({''})
                 if (length(Genes) != 0) {
                 output$ScanTime <- renderText(paste("Estimated scan time:", 
                 round((1.22*dim(datasetInput())[1] + (0.008 * dim(datasetInput())[1] * length(Genes)))/60, 1), "minutes"))
@@ -115,15 +145,21 @@ shinyServer(function(input, output, session){
         })
         
         
+        output$customfile <- renderUI({
+                fileInput('genefile', 'Upload CSV file (limit = 200 gene symbols)', accept='.csv')
+        })
+        
+        
         observeEvent(input$scan, {
-                
-                Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), as.character(input$gene), custom_genes()))
+                Genes <- unique(c(as.character(unlist(MasterListAll[[input$organism]][input$KEGG])), 
+                                  as.character(input$gene), custom_genes(), wildcard_genes()))
                 
                 if (length(Genes) == 0) {
                         output$done <- renderText({'No genes selected'})
                         output$ui <- renderUI({
                                 verbatimTextOutput('done')
                         })
+                
                 } else {       
                         Session.ID <- gsub(" ", "", Sys.time(), fixed = TRUE)
                         Session.ID <- gsub("-", "", Session.ID, fixed = TRUE)
@@ -134,29 +170,59 @@ shinyServer(function(input, output, session){
                         dir.create(Session.path)
                         setwd(Session.path)
                         
-                        write.csv(datasetInput(), file = paste("02_GDS_summary_", input$organism, '.csv', sep=''), 
-                                  row.names = FALSE)
                         file.copy(from = paste(First.wd, "/01_README.pdf", sep = ""), to = Session.path)
+                        write.csv(datasetInput(), file = paste("02_Summary_Table_", input$organism, '.csv', sep=''), 
+                                  row.names = FALSE)
                         
                         withProgress(message = 'Scanning GEO data base', value = 0, {
                                 ScanGeo(Genes, datasetInput()$gds, input$alpha)})
-                        if (length(list.files(pattern = '\\.pdf$')) > 0) {
+                        
+                                # Create summary table of significant genes
+                                sig_genes_tab <- data.frame("Gene" = names(sort(rowSums(ScanPvalues < input$alpha, na.rm = TRUE), decreasing = TRUE)), 
+                                                            "Significant Studies" = as.numeric(sort(rowSums(ScanPvalues < input$alpha, na.rm = TRUE), 
+                                                                                                    decreasing = TRUE)))
+                                write.csv(sig_genes_tab, file = "03_Results_sig_genes.csv", row.names = FALSE)
                                 
-                                Composite.Name <- paste(Session.ID, '.zip', sep='')
-                                SystemCall <- paste("find . \\( -name '*.pdf' -or -name '*.csv' \\) -print | zip ", 
-                                                    Composite.Name, " -@", sep ="")
-                                system(SystemCall)
-                                
-                                output$done <- renderText({'Scan complete!'})
-                                output$ui <- renderUI({
-                                        tagList(
-                                        verbatimTextOutput('done'),
-                                        downloadButton('download', 'Download results'),
-                                        hr(),
-                                        actionButton('reset', "Reset", icon("refresh", class = "fa-spin"),
-                                                     style="color: #fff; background-color: #337ab7; border-color: #2e6da4")
-                                        )
+                                output$sig_genes <- renderDataTable({
+                                sig_genes_tab
                                 })
+                                
+                                # Create summary table of significant studies
+                                inputs <- cbind(datasetInput()$title, datasetInput()$gds)
+                                colnames(inputs) <- c("Title", "gds")
+                                
+                                Datatable <- data.frame("gds" = names(colSums(ScanPvalues < input$alpha, na.rm = TRUE)),
+                                        "GDS" = unlist(lapply(names(colSums(ScanPvalues < input$alpha, na.rm = TRUE)), function(x){
+                                        paste0("<a href='", "https://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=",
+                                        x, "' target='_blank'>", x,"</a>")})),
+                                        "Significant_Genes" = as.numeric(colSums(ScanPvalues < input$alpha, na.rm = TRUE)))
+                                
+                                sig_studies_tab <- merge(inputs, Datatable, by = "gds")
+                                sig_studies_tab <- sig_studies_tab[order(sig_studies_tab$Significant_Genes, decreasing = TRUE), ]
+                                write.csv(sig_studies_tab[, c(2, 1, 4)], file = "04_Results_sig_studies.csv", row.names = FALSE)
+                                
+                                output$sig_studies <- renderDataTable({
+                                        sig_studies_tab[, -1]
+                                }, escape = FALSE)
+                                
+                                if (length(list.files(pattern = '\\.pdf$')) > 0) {
+                                        Composite.Name <- paste(Session.ID, '.zip', sep='')
+                                        SystemCall <- paste("find . \\( -name '*.pdf' -or -name '*.csv' \\) -print | zip ", 
+                                                            Composite.Name, " -@", sep ="")
+                                        system(SystemCall)
+                                        
+                                        output$done <- renderText({'Scan complete!'})
+                                        output$ui <- renderUI({
+                                                tagList(
+                                                        verbatimTextOutput('done'),
+                                                        downloadButton('download', 'Download results'),
+                                                        
+                                                        hr(),
+                                                        actionButton('reset', "Reset", icon("refresh", class = "fa-spin"),
+                                                                     style="color: #fff; background-color: #337ab7; border-color: #2e6da4")
+                                                )
+                                        })
+                                
                         } else {
                                 output$done <- renderText({'No significant genes!'})
                                 output$ui <- renderUI({
@@ -169,9 +235,8 @@ shinyServer(function(input, output, session){
                                 })
                         }
                }
-           
-               
 
+                           
         output$download <- downloadHandler(
                 filename = Composite.Name,
                 content <- function(file) {
@@ -185,17 +250,22 @@ shinyServer(function(input, output, session){
                 updateSelectInput(session, 'organism', label = "Organism:", choices = Genus)
                 updateTextInput(session, 'text', label = "Additional search term:", value = "")
                 updateSelectizeInput(session, 'gene', server = TRUE, choices = genesList())
+                updateTextInput(session, 'wildcard', label = "Wildcard search (e.g. all genes starting with 'MIR' or 'LINC')", value = "")
                 updateRadioButtons(session, 'alpha', label = "Significance level alpha",
                                    choices = list("0.05" = 0.05, "0.01" = 0.01, "0.001" = 0.001),
                                    selected = 0.05)
                 output$table <- renderDataTable({})
+                output$sig_genes <- renderDataTable({})
+                output$sig_studies <- renderDataTable({})
                 output$ScanButton <- renderUI({})
                 output$time <- renderUI({})
                 output$ui <- renderUI({})
+                output$wild_UI <- renderUI({})
                 output$status <- renderUI({})
                 output$error <- renderUI({})
                 output$customfile <- renderUI({
                         fileInput('genefile', 'Upload CSV file (limit = 200 gene symbols)', accept='.csv')
+                
                 })
         
               
