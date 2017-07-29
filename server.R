@@ -11,7 +11,7 @@
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 #    General Public License for more details <http://www.gnu.org/licenses/>.
 
-#    If this code is helpful to your research, please cite our related publication:
+#    If this code is helpful to you, please cite our related publication:
 #    https://academic.oup.com/bioinformatics/article-abstract/doi/10.1093/bioinformatics/btx452/3965322/ScanGEO-parallel-mining-of-highthroughput-gene
 
 
