@@ -11,6 +11,10 @@
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 #    General Public License for more details <http://www.gnu.org/licenses/>.
 
+#    If this code is helpful to your research, please cite our related publication:
+#    https://academic.oup.com/bioinformatics/article-abstract/doi/10.1093/bioinformatics/btx452/3965322/ScanGEO-parallel-mining-of-highthroughput-gene
+
+
 shinyServer(function(input, output, session){
                
 
@@ -164,6 +168,7 @@ shinyServer(function(input, output, session){
                         Session.ID <- gsub(" ", "", Sys.time(), fixed = TRUE)
                         Session.ID <- gsub("-", "", Session.ID, fixed = TRUE)
                         Session.ID <- gsub(":", "", Session.ID, fixed = TRUE)
+                        Session.ID <- paste(Session.ID, sample(1000:9999, 1), sep = "_")
                         
                         setwd(First.wd)
                         Session.path <- paste(First.wd, "/results/", Session.ID, sep ="")
@@ -212,10 +217,13 @@ shinyServer(function(input, output, session){
                                         system(SystemCall)
                                         
                                         output$done <- renderText({'Scan complete!'})
+                                        
                                         output$ui <- renderUI({
                                                 tagList(
                                                         verbatimTextOutput('done'),
                                                         downloadButton('download', 'Download results'),
+                                                        a("Please cite our publication", href="https://academic.oup.com/bioinformatics/article-abstract/doi/10.1093/bioinformatics/btx452/3965322/ScanGEO-parallel-mining-of-highthroughput-gene", target="_blank"),
+                                                        
                                                         
                                                         hr(),
                                                         actionButton('reset', "Reset", icon("refresh", class = "fa-spin"),
