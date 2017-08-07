@@ -9,7 +9,7 @@ Source code for ScanGEO Shiny App
 
 R installed (https://www.r-project.org/)
 
-R packages: "shiny", "GEOmetadb" and "randomForest"
+R packages: "shiny" and "GEOmetadb"
 
 Internet connection
 
