@@ -45,7 +45,7 @@ shinyUI(
                                
                                 tabPanel("KEGG Pathway",
                                 wellPanel(
-                                selectizeInput('KEGG', "Select KEGG pathway", multiple = FALSE, choices = NULL)
+                                selectizeInput('KEGG', "Select KEGG pathway", multiple = TRUE, choices = NULL)
                                 )),
                                 
                                 tabPanel("Custom Genes",

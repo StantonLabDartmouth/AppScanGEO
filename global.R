@@ -32,9 +32,9 @@ load("MasterListAll.rds")
 ScanGeo <- function(geneList, gdsList, alpha){	
         ScanResult = list()
         ScanPvalues <<- matrix(nrow = length(geneList), ncol = length(gdsList), 
-                             data = NA, dimnames = list(geneList, gdsList))
+                               data = NA, dimnames = list(geneList, gdsList))
         ScanFC <<- matrix(nrow = length(geneList), ncol = length(gdsList), 
-                             data = NA, dimnames = list(geneList, gdsList))
+                          data = NA, dimnames = list(geneList, gdsList))
         for(gds in gdsList){
                 incProgress(1/length(gdsList))
                 print(gds)
@@ -42,114 +42,115 @@ ScanGeo <- function(geneList, gdsList, alpha){
                 
                 G <- try(getGEO(gds, destdir = paste(First.wd, "/softfiles", sep="")))
                 if (class(G) == "GDS") {
-                
-                if(dim(Columns(G))[2] > 3){
-                        myF <- apply(apply(Columns(G)[,-c(1,dim(Columns(G))[2])], 2, as.character), 1, 
-                                     function(x){paste(x, collapse="_")})
-                } else {
-                        myF <- as.character(Columns(G)[,-c(1,dim(Columns(G))[2])])
-                }
-                
-                # This requires that all groups have at least two samples
-                if(min(table(myF)) > 1){
-                        d <- Table(G)
-                        dMat <- apply(d[,-c(1,2)], 2, as.numeric)
-                        rownames(dMat) <- as.vector(d$ID_REF)
                         
+                        if(dim(Columns(G))[2] > 3){
+                                myF <- apply(apply(Columns(G)[,-c(1,dim(Columns(G))[2])], 2, as.character), 1, 
+                                             function(x){paste(x, collapse="_")})
+                        } else {
+                                myF <- as.character(Columns(G)[,-c(1,dim(Columns(G))[2])])
+                        }
                         
-                        for(gene in geneList){
-                                print(paste("Finding probes for", gene, gds))
+                        # This requires that all groups have at least two samples
+                        if(min(table(myF)) > 1){
+                                d <- Table(G)
+                                dMat <- apply(d[,-c(1,2)], 2, as.numeric)
+                                rownames(dMat) <- as.vector(d$ID_REF)
                                 
-                                probes <-  as.vector(G@dataTable@table$"ID_REF")[as.vector(G@dataTable@table$IDENTIFIER) == gene]
                                 
-                                # probes <- probes[- which(is.na(probes))]
-                                for (p in as.vector(probes)){
-                                        if(is.na(p)) {next}
-                                        print(paste("Finding values for", gene, gds, p))
-                                        if((sum(is.na(dMat[p,])) == 0) & (sum(dMat[p,] > 0 ) == dim(dMat)[2])){
-                                                print(paste("ANOVA for", gene, gds, p))
-                                                
-                                                # test if matrix is already log transformed
-                                                if (max(dMat, na.rm = TRUE) > 20){
-                                                eData <- log2(dMat[p,])
-                                                } else {
-                                                eData <- dMat[p,]       
-                                                }
+                                for(gene in geneList){
+                                        print(paste("Finding probes for", gene, gds))
+                                        
+                                        probes <-  as.vector(as.character(G@dataTable@table$"ID_REF"))[as.vector(G@dataTable@table$IDENTIFIER) == gene]
+                                        
+                                        # probes <- probes[- which(is.na(probes))]
+                                        for (p in as.vector(probes)){
+                                                if(is.na(p)) {next}
+                                                print(paste("Finding values for", gene, gds, p))
+                                                if((sum(is.na(dMat[p,])) == 0) & (sum(dMat[p,] > 0 ) == dim(dMat)[2])){
+                                                        print(paste("ANOVA for", gene, gds, p))
                                                         
-                                                myP = anova(lm(eData ~ myF))$"Pr(>F)"[1]
-                                                
-                                                # myP is for a probe, not a gene
-                                                # we only update the gene p-value if the probe p value is less than the existing p-value
-                                                if (is.nan(myP)) {next}
-                                                
-                                                if (is.na(ScanPvalues[gene, gds])){
-                                                        ScanPvalues[gene, gds] <<- myP
-                                                } else if (ScanPvalues[gene, gds] > myP) {
-                                                        ScanPvalues[gene, gds] <<- myP
-                                                }
-                                                
-                                                # calculate absolute maximum log2 fold changes
-                                                means <- tapply(eData, factor(myF), mean)
-                                                maxFC <- abs(range(means)[1] - range(means)[2])
-                                                ScanFC[gene, gds] <<- maxFC
-                                                
-                                                if (myP < alpha){
-                                                        myPDF = sub('/', '_', paste(gene, p, gds, "pdf", sep='.'))
-                                                        myCSV = sub('/', '_', paste(gene, p, gds, "csv", sep='.'))
-                                                        print(paste("Creating boxplot:", myPDF))
-                                                        
-                                                        CSVmat = matrix(nrow = 1, ncol = length(myF), data = dMat[p,], dimnames = list(gene, myF))
-                                                        write.csv(CSVmat, file = myCSV)
-                                                        
-                                                        pdf(file=myPDF)
-                                                        if(nchar(G@header$title) > 60){
-                                                                par(cex.main=.6)
+                                                        # test if matrix is already log transformed
+                                                        if (max(dMat, na.rm = TRUE) > 20){
+                                                                eData <- log2(dMat[p,])
                                                         } else {
-                                                                par(cex.main=1.2)
+                                                                eData <- dMat[p,]       
                                                         }
                                                         
-                                                        if (max(unlist(lapply(myF, nchar)) > 12)){
-                                                                par(cex.axis=.5)
-                                                                par( oma = c(3, 3, 3, 3))
-                                                                par( mar = c( 15, 4.1, 4.1, 2.1))
+                                                        myP = anova(lm(eData ~ myF))$"Pr(>F)"[1]
+                                                        
+                                                        # myP is for a probe, not a gene
+                                                        # we only update the gene p-value if the probe p value is less than the existing p-value
+                                                        if (is.nan(myP)) {next}
+                                                        
+                                                        if (is.na(ScanPvalues[gene, gds])){
+                                                                ScanPvalues[gene, gds] <<- myP
+                                                        } else if (ScanPvalues[gene, gds] > myP) {
+                                                                ScanPvalues[gene, gds] <<- myP
+                                                        }
+                                                        
+                                                        # calculate absolute maximum log2 fold changes
+                                                        means <- tapply(eData, factor(myF), mean)
+                                                        maxFC <- abs(range(means)[1] - range(means)[2])
+                                                        ScanFC[gene, gds] <<- maxFC
+                                                        
+                                                        if (myP < alpha){
+                                                                myPDF = sub('/', '_', paste(gene, p, gds, "pdf", sep='.'))
+                                                                myCSV = sub('/', '_', paste(gene, p, gds, "csv", sep='.'))
+                                                                print(paste("Creating boxplot:", myPDF))
+                                                                
+                                                                CSVmat = matrix(nrow = 1, ncol = length(myF), data = dMat[p,], dimnames = list(gene, myF))
+                                                                write.csv(CSVmat, file = myCSV)
+                                                                
+                                                                pdf(file=myPDF)
+                                                                if(nchar(G@header$title) > 60){
+                                                                        par(cex.main=.6)
+                                                                } else {
+                                                                        par(cex.main=1.2)
+                                                                }
+                                                                
+                                                                if (max(unlist(lapply(myF, nchar)) > 12)){
+                                                                        par(cex.axis=.5)
+                                                                        par( oma = c(3, 3, 3, 3))
+                                                                        par( mar = c( 15, 4.1, 4.1, 2.1))
+                                                                        
+                                                                } else {
+                                                                        par(cex.axis=1)
+                                                                        par( oma = c(0, 0, 0, 0))
+                                                                        par(mar =c( 5.1, 4.1, 4.1, 2.1))
+                                                                }
+                                                                
+                                                                
+                                                                ScanResult[[gds]] = c(ScanResult[[gds]], gene)
+                                                                
+                                                                stripchart(eData ~ factor(myF), 
+                                                                           main=paste(G@header$title, paste(paste(gene, p, gds, "pdf", sep='.'), 
+                                                                                                            paste("P =", round(myP, 3)), sep = " : "), sep="\n"),
+                                                                           ylab=paste(gene, "RNA Expression (log2)"), las=2, 
+                                                                           xlim=c(0.5, length(levels(factor(myF))) + 0.5),
+                                                                           vertical = TRUE, pch = 16, col = "black") 
+                                                                #means <- tapply(eData, factor(myF), mean)
+                                                                
+                                                                loc <- 1:length(means)
+                                                                segments(loc-0.3, means, loc+0.3, means, col="red", lwd=3)
+                                                                dev.off()
                                                                 
                                                         } else {
-                                                                par(cex.axis=1)
-                                                                par( oma = c(0, 0, 0, 0))
-                                                                par(mar =c( 5.1, 4.1, 4.1, 2.1))
+                                                                print (paste("P exceeds target alpha", gene, gds, p, myP))
                                                         }
                                                         
                                                         
-                                                        ScanResult[[gds]] = c(ScanResult[[gds]], gene)
-                                                        
-                                                        stripchart(eData ~ factor(myF), 
-                                                                   main=paste(G@header$title, paste(paste(gene, p, gds, "pdf", sep='.'), 
-                                                                        paste("P =", round(myP, 3)), sep = " : "), sep="\n"),
-                                                                   ylab=paste(gene, "RNA Expression (log2)"), las=2, 
-                                                                   xlim=c(0.5, length(levels(factor(myF))) + 0.5),
-                                                                   vertical = TRUE, pch = 16, col = "black") 
-                                                        #means <- tapply(eData, factor(myF), mean)
-                                                        
-                                                        loc <- 1:length(means)
-                                                        segments(loc-0.3, means, loc+0.3, means, col="red", lwd=3)
-                                                        dev.off()
-                                                
-                                                } else {
-                                                        print (paste("P exceeds target alpha", gene, gds, p, myP))
+                                                } else { 
+                                                        print (paste("Data issues:", gene, gds, p))
                                                 }
-                                     
-                                        
-                                        } else { 
-                                                print (paste("Data issues:", gene, gds, p))
                                         }
+                                        
                                 }
                                 
                         }
-                        
-                }
-        }}
+                }}
         write.csv(ScanPvalues, file = "05_pValues_summary.csv")
         write.csv(ScanFC, file = "06_max_log2FC_summary.csv")
         return(ScanResult)
         
 }
+
